@@ -1,0 +1,51 @@
+fasta_file	geo_loc_name	lat_lon	train_line
+test0/SRR27257421_1.fasta.gz	Auckland	36.8623448 S 174.8094938 E	Orakei_station_
+test0/SRR27257857_1.fasta.gz	Auckland	36.8623615 S 174.8095648 E	Orakei_station_
+test0/SRR27257890_1.fasta.gz	Auckland	36.8787746 S 174.8542311 E	Glen_Innes_Railway_Station
+test0/SRR27257964_1.fasta.gz	Auckland	36.8442053 S 174.7679586 E	Britomart_Transport_Centre
+test0/SRR27258018_1.fasta.gz	Auckland	36.8662717 S 174.8207246 E	Meadowbank_station_
+test0/SRR27257590_1.fasta.gz	Berlin	52.5139603 N 13.4749359 E	Frankfurter_Allee_
+test0/SRR27257884_1.fasta.gz	Berlin	52.5127771 N 13.2677184 E	Neu_Westend_
+test0/SRR27257949_1.fasta.gz	Berlin	52.5088698 N 13.3227731 E	Deutsche_Oper_
+test0/SRR27257977_1.fasta.gz	Berlin	52.510608 N 13.4904944 E	Lichtenberg_
+test0/SRR27258013_1.fasta.gz	Berlin	52.5167008 N 13.4407376 E	Schillingstrasse_
+test0/SRR27258075_1.fasta.gz	Berlin	52.5127771 N 13.2677184 E	Neu_Westend_
+test0/SRR27258138_1.fasta.gz	Berlin	52.5167008 N 13.4407376 E	Schillingstrasse_
+test0/SRR28910726_1.fasta.gz	Kyiv	missing	Maidan_Nezalezhnosti
+test0/SRR28910758_1.fasta.gz	Kyiv	missing	Maidan_Nezalezhnosti
+test0/SRR28910782_1.fasta.gz	Kyiv	missing	Minska
+test0/SRR28910791_1.fasta.gz	Kyiv	missing	Heroiv_Dnipra
+test0/SRR28910877_1.fasta.gz	Kyiv	missing	Minska
+test0/SRR28911089_1.fasta.gz	Kyiv	missing	Kontraktova_Ploshcha
+test0/SRR28911213_1.fasta.gz	Kyiv	missing	Petrivka
+test0/SRR27257243_1.fasta.gz	London	51.51010128 N 0.13399405 W	Picadilly Circus
+test0/SRR27257523_1.fasta.gz	London	51.51519833 N 0.14175309 W	Oxford Circus
+test0/SRR27257572_1.fasta.gz	London	51.52357375 N 0.14684518 W	Regent's Park
+test0/SRR27258123_1.fasta.gz	London	51.5394686 N 0.14270954 W	Camden Town
+test0/SRR28910743_1.fasta.gz	London	51.50731012 N 0.12234060 W	Embankment
+test0/SRR28910899_1.fasta.gz	London	51.50731012 N 0.12234060 W	Embankment
+test0/SRR28910940_1.fasta.gz	London	51.51742113 N 0.08295875 W	Liverpool Street
+test0/SRR28911007_1.fasta.gz	London	51.51742113 N 0.08295875 W	Liverpool Street
+test0/SRR28911138_1.fasta.gz	London	51.49056563 N 0.20645451 W	West Kensington
+test0/SRR28911176_1.fasta.gz	London	51.51537887 N 0.17536529 W	Paddington
+test0/SRR28911259_1.fasta.gz	London	51.50866134 N 0.12473342 W	Charing Cross
+test0/SRR28911292_1.fasta.gz	London	51.49056563 N 0.20645451 W	West Kensington
+test0/SRR28911335_1.fasta.gz	London	51.49641574 N 0.14382851 W	Victoria
+test0/SRR28911358_1.fasta.gz	London	51.51156251 N 0.10359612 W	Blackfriars
+test0/SRR28911394_1.fasta.gz	London	51.51156251 N 0.10359612 W	Blackfriars
+test0/SRR28911417_1.fasta.gz	London	51.50074572 N 0.19248069 W	High St Kensington
+test0/SRR28911433_1.fasta.gz	London	51.49431275 N 0.18296068 W	Gloucester Road
+test0/SRR28911585_1.fasta.gz	London	51.49407225 N 0.17390302 W	South Kensington
+test0/SRR28910730_1.fasta.gz	Singapore	1.432157 N 103.773752 E	marsiling
+test0/SRR28910734_1.fasta.gz	Singapore	1.384295 N 103.744638 E	cck
+test0/SRR28910741_1.fasta.gz	Singapore	1.429474 N 103.834138 E	yishun
+test0/SRR28910761_1.fasta.gz	Singapore	1.386128 N 103.744284 E	cck
+test0/SRR28910767_1.fasta.gz	Singapore	1.435325 N 103.787327 E	Woodlands
+test0/SRR28910775_1.fasta.gz	Singapore	1.384198 N 103.744375 E	cck
+test0/SRR28910798_1.fasta.gz	Singapore	1.43769 N 103.78597 E	Woodlands
+test0/SRR27257294_1.fasta.gz	Tokyo	35.60088801 N 139.6848696 E	Tokyo_Tech
+test0/SRR27257815_1.fasta.gz	Tokyo	35.6053238 N 139.6824074 E	West_Hall
+test0/SRR27257898_1.fasta.gz	Tokyo	35.60114099 N 139.6846014 E	Tokyo_Tech
+test0/SRR28911052_1.fasta.gz	Tokyo	35.636288 N 139.883839 E	maihama
+test0/SRR28911076_1.fasta.gz	Tokyo	35.668267 N 139.717876 E	soba
+test0/SRR28911334_1.fasta.gz	Tokyo	35.658743 N 139.699563 E	shibuya_crossing
