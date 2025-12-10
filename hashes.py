@@ -10,10 +10,10 @@ import argparse
 
 import numpy as np
 
-from scipy.optimize import minimize
-from scipy.special import expit
-
-from typing import Tuple, List
+from typing import Tuple
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
 try:
     import resource
@@ -21,8 +21,8 @@ except ImportError:
     resource = None
 
 # Config
-DEFAULT_K = 20
-DEFAULT_SKETCH_SIZE = 10000
+DEFAULT_K = 19
+DEFAULT_SKETCH_SIZE = 10050
 DEFAULT_SEED = 424242
 CHUNK_SIZE_MB = 10  # 10MB chunks to control memory
 
@@ -35,6 +35,13 @@ def get_pow4_kernel(k: int) -> np.ndarray:
 
 def vectorized_hash(arr: np.ndarray) -> np.ndarray:
     """ Invertible integer mixing function (Wang Hash) for randomization.
+    # MurmurHash3 64-bit a bit faster but get worse AUC
+    key = arr.astype(np.uint64)
+    key ^= key >> np.uint64(33)
+    key *= np.uint64(0xff51afd7ed558ccd)
+    key ^= key >> np.uint64(33)
+    key *= np.uint64(0xc4ceb9fe1a85ec53)
+    key ^= key >> np.uint64(33)
     """
     key = arr.copy()
     key = (~key) + (key << 21)
@@ -80,6 +87,7 @@ def process_chunk_vectorized(sequence_buffer: str,
     windows = np.lib.stride_tricks.as_strided(arr_int, shape=shape, strides=strides)
     window_max = np.max(windows, axis=1)
     valid_indices = window_max < 4
+
     if not np.any(valid_indices):
         return np.array([], dtype=np.uint64)
 
@@ -114,7 +122,7 @@ def sketch_file_fast(filename: str,
                 total_len += len(chunk)
                 full_text = overlap + chunk
                 if len(chunk) >= k:
-                    overlap = chunk[-(k-1):]
+                    overlap = full_text[-(k-1):]
                 else:
                     overlap = full_text
                 
@@ -122,6 +130,7 @@ def sketch_file_fast(filename: str,
                 hashes = process_chunk_vectorized(clean_text, k, pow4)
                 if len(hashes) > 0:
                     all_hashes.update(hashes)
+
                     # Save memory
                     if len(all_hashes) > sketch_size * 20:
                          arr = np.array(list(all_hashes), dtype=np.uint64)
@@ -138,52 +147,41 @@ def sketch_file_fast(filename: str,
     if len(final_arr) > sketch_size:
         final_arr = np.partition(final_arr, sketch_size)[:sketch_size]
 
+    # Length of reads is circa 150bp
     approx_reads = int(total_len / 150)
     return set(final_arr), approx_reads
 
 
 # Logistic Regression
 def train_lr(X: np.ndarray,
-             y: np.ndarray,
-             reg: float = 1.0
-             ) -> dict:
-    n, d = X.shape
-    classes = np.unique(y)
-    models = {}
-    X_b = np.hstack([np.ones((n, 1)), X])
+             y: np.ndarray
+             ) -> object:
+    """ Trains a Scikit-Learn Logistic Regression pipeline.
+    Replaces manual scipy.optimize.minimize.
+    """
+    print(f"Training Sklearn LogisticRegression on {len(y)} samples.")
+
+    # Solver='lbfgs' and less regularization (C=10.0)
+    model = make_pipeline(
+        StandardScaler(), 
+        LogisticRegression(
+            C=10.0, 
+            solver="lbfgs", 
+            max_iter=1000, 
+            class_weight="balanced",
+            random_state=DEFAULT_SEED
+        )
+    )
     
-    print(f"Training on {n} samples.")
-    for c in classes:
-        y_bin = (y == c).astype(float)
-        def func(w):
-            z = X_b.dot(w)
-            p = expit(z)
-            p = np.clip(p, 1e-9, 1-1e-9)
-            loss = -np.mean(y_bin * np.log(p) + (1 - y_bin) * np.log(1 - p))
-            l2 = (reg / (2 * n)) * np.sum(w[1:]**2)
-            grad = X_b.T.dot(p - y_bin)/n
-            grad[1:] += (reg / n) * w[1:]
-            return loss + l2, grad
-        
-        res = minimize(func, np.zeros(d+1), jac=True, method="L-BFGS-B")
-        models[c] = res.x
-    return models
+    model.fit(X, y)
+    return model
 
 
-def predict(models: dict,
-            X: np.ndarray,
-            labels: List[str]
-            ) -> np.ndarray:
-    n = X.shape[0]
-    X_b = np.hstack([np.ones((n, 1)), X])
-    probs = np.zeros((n, len(labels)))
-    for i, _ in enumerate(labels):
-        if i in models:
-            probs[:, i] = expit(X_b.dot(models[i]))
-
-    sums = probs.sum(axis=1, keepdims=True)
-    sums[sums==0] = 1.0
-    return probs / sums
+def predict(model: object, X: np.ndarray) -> np.ndarray:
+    """ Wrapper for sklearn prediction to match expected output format.
+    Returns probability matrix (n_samples, n_classes).
+    """
+    return model.predict_proba(X)
 
 
 # Memory Tracking
@@ -192,7 +190,7 @@ def get_memory_usage() -> float:
     """
     if resource:
         usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        if sys.platform == 'darwin':
+        if sys.platform == "darwin":
              return usage / (1024 * 1024) # Mac is bytes
         else:
             return usage / 1024 # Linux is KB
@@ -208,7 +206,6 @@ def main():
     parser.add_argument("--k", type=int, default=DEFAULT_K)
     parser.add_argument("--sketch_size", type=int, default=DEFAULT_SKETCH_SIZE)
     args = parser.parse_args()
-
     t_start = time.time()
     total_reads_approx = 0
     print("> Phase 1: References")
@@ -228,11 +225,13 @@ def main():
     for lab in labels:
         city_hashes = set()
         for fpath in file_map[lab]:
-            s, r_count = sketch_file_fast(fpath, args.k, args.sketch_size * 5)
+            s, r_count = sketch_file_fast(fpath, args.k, args.sketch_size)
             city_hashes.update(s)
             total_reads_approx += r_count
             
         final_arr = np.array(list(city_hashes), dtype=np.uint64)
+
+        # Take more sketches
         if len(final_arr) > args.sketch_size * 2:
              final_arr = np.partition(final_arr, args.sketch_size * 2)[:args.sketch_size * 2]
         
@@ -298,7 +297,8 @@ def main():
         else:
             feats = [0.0]*len(labels)
             
-        probs = predict(models, np.array([feats]), labels)[0]
+        feats_array = np.array([feats]) 
+        probs = predict(models, feats_array)[0]
         results.append([fname] + list(probs))
         if (i+1)%10==0:
             print(f"{i+1}/{len(test_files)}")
