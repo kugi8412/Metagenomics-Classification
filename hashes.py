@@ -21,10 +21,10 @@ except ImportError:
     resource = None
 
 # Config
-DEFAULT_K = 19
-DEFAULT_SKETCH_SIZE = 10050
+DEFAULT_K = 25
+DEFAULT_SKETCH_SIZE = 7500
 DEFAULT_SEED = 424242
-CHUNK_SIZE_MB = 10  # 10MB chunks to control memory
+CHUNK_SIZE_KB = 75
 
 
 def get_pow4_kernel(k: int) -> np.ndarray:
@@ -115,7 +115,7 @@ def sketch_file_fast(filename: str,
         with gzip.open(filename, 'rt') as f:
             overlap = ""
             while True:
-                chunk = f.read(CHUNK_SIZE_MB * 1024 * 1024)
+                chunk = f.read(CHUNK_SIZE_KB * 1024)
                 if not chunk:
                     break
 
@@ -125,7 +125,6 @@ def sketch_file_fast(filename: str,
                     overlap = full_text[-(k-1):]
                 else:
                     overlap = full_text
-                
                 clean_text = full_text.replace('\n', '')
                 hashes = process_chunk_vectorized(clean_text, k, pow4)
                 if len(hashes) > 0:
@@ -233,7 +232,8 @@ def main():
 
         # Take more sketches
         if len(final_arr) > args.sketch_size * 2:
-             final_arr = np.partition(final_arr, args.sketch_size * 2)[:args.sketch_size * 2]
+            print(f"Reducing reference sketches for {lab} from {len(final_arr)} to {args.sketch_size * 2}")
+            final_arr = np.partition(final_arr, args.sketch_size * 2)[:args.sketch_size * 2]
         
         ref_sketches.append(set(final_arr))
         print(f"{lab}: {len(ref_sketches[-1])}")
@@ -248,7 +248,7 @@ def main():
             try:
                 with gzip.open(fpath, 'rt') as f:
                     for _ in range(10):
-                        chunk = f.read(5_000_000)
+                        chunk = f.read(CHUNK_SIZE_KB * 1024)
                         if not chunk or len(chunk) < 5000:
                             break
 

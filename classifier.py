@@ -3,8 +3,6 @@
 
 
 import os
-import sys
-import time
 import gzip
 import argparse
 
@@ -21,10 +19,10 @@ except ImportError:
     resource = None
 
 # Config
-DEFAULT_K = 19
-DEFAULT_SKETCH_SIZE = 10050
+DEFAULT_K = 25
+DEFAULT_SKETCH_SIZE = 7500
 DEFAULT_SEED = 424242
-CHUNK_SIZE_MB = 10  # 10MB chunks to control memory
+CHUNK_SIZE_KB = 75
 
 
 def get_pow4_kernel(k: int) -> np.ndarray:
@@ -110,22 +108,19 @@ def sketch_file_fast(filename: str,
     """
     pow4 = get_pow4_kernel(k)
     all_hashes = set()
-    total_len = 0
     try:
         with gzip.open(filename, 'rt') as f:
             overlap = ""
             while True:
-                chunk = f.read(CHUNK_SIZE_MB * 1024 * 1024)
+                chunk = f.read(CHUNK_SIZE_KB * 1024)
                 if not chunk:
                     break
 
-                total_len += len(chunk)
                 full_text = overlap + chunk
                 if len(chunk) >= k:
                     overlap = full_text[-(k-1):]
                 else:
                     overlap = full_text
-                
                 clean_text = full_text.replace('\n', '')
                 hashes = process_chunk_vectorized(clean_text, k, pow4)
                 if len(hashes) > 0:
@@ -147,9 +142,7 @@ def sketch_file_fast(filename: str,
     if len(final_arr) > sketch_size:
         final_arr = np.partition(final_arr, sketch_size)[:sketch_size]
 
-    # Length of reads is circa 150bp
-    approx_reads = int(total_len / 150)
-    return set(final_arr), approx_reads
+    return set(final_arr)
 
 
 # Logistic Regression
@@ -157,11 +150,9 @@ def train_lr(X: np.ndarray,
              y: np.ndarray
              ) -> object:
     """ Trains a Scikit-Learn Logistic Regression pipeline.
-    Replaces manual scipy.optimize.minimize.
+    Replaces manual scipy.optimize.minimize. Solver='lbfgs' and
+    less regularization (C=10.0) for better convergence.
     """
-    print(f"Training Sklearn LogisticRegression on {len(y)} samples.")
-
-    # Solver='lbfgs' and less regularization (C=10.0)
     model = make_pipeline(
         StandardScaler(), 
         LogisticRegression(
@@ -184,20 +175,6 @@ def predict(model: object, X: np.ndarray) -> np.ndarray:
     return model.predict_proba(X)
 
 
-# Memory Tracking
-def get_memory_usage() -> float:
-    """ Returns peak memory usage in MB for Linux/MAC.
-    """
-    if resource:
-        usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        if sys.platform == "darwin":
-             return usage / (1024 * 1024) # Mac is bytes
-        else:
-            return usage / 1024 # Linux is KB
-
-    return 0.0
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("training_data")
@@ -206,9 +183,6 @@ def main():
     parser.add_argument("--k", type=int, default=DEFAULT_K)
     parser.add_argument("--sketch_size", type=int, default=DEFAULT_SKETCH_SIZE)
     args = parser.parse_args()
-    t_start = time.time()
-    total_reads_approx = 0
-    print("> Phase 1: References")
     file_map = {}
     base_dir = os.path.dirname(args.training_data)
     with open(args.training_data) as f:
@@ -225,9 +199,8 @@ def main():
     for lab in labels:
         city_hashes = set()
         for fpath in file_map[lab]:
-            s, r_count = sketch_file_fast(fpath, args.k, args.sketch_size)
+            s = sketch_file_fast(fpath, args.k, args.sketch_size)
             city_hashes.update(s)
-            total_reads_approx += r_count
             
         final_arr = np.array(list(city_hashes), dtype=np.uint64)
 
@@ -236,9 +209,7 @@ def main():
              final_arr = np.partition(final_arr, args.sketch_size * 2)[:args.sketch_size * 2]
         
         ref_sketches.append(set(final_arr))
-        print(f"{lab}: {len(ref_sketches[-1])}")
 
-    print("> Phase 2: Synthetic Data")
     X_train, y_train = [], []
     pow4 = get_pow4_kernel(args.k)
     
@@ -248,7 +219,7 @@ def main():
             try:
                 with gzip.open(fpath, 'rt') as f:
                     for _ in range(10):
-                        chunk = f.read(5_000_000)
+                        chunk = f.read(CHUNK_SIZE_KB * 1024)
                         if not chunk or len(chunk) < 5000:
                             break
 
@@ -272,12 +243,10 @@ def main():
     X_train = np.array(X_train)
     y_train = np.array(y_train)
     if len(X_train) == 0:
-        print("[ERROR]: No training data.")
-        return
-    print(f"> Phase 3: Training ({len(y_train)} samples)")
+        return None
+
     models = train_lr(X_train, y_train)
 
-    print("> Phase 4: Testing")
     test_files = []
     base_test = os.path.dirname(args.testing_data)
     with open(args.testing_data) as f:
@@ -287,8 +256,7 @@ def main():
     results = []
     for i, fname in enumerate(test_files):
         fpath = os.path.join(base_test, fname)
-        s_set, r_count = sketch_file_fast(fpath, args.k, args.sketch_size)
-        total_reads_approx += r_count
+        s_set = sketch_file_fast(fpath, args.k, args.sketch_size)
         feats = []
         denom = len(s_set)
         if denom > 0:
@@ -300,48 +268,12 @@ def main():
         feats_array = np.array([feats]) 
         probs = predict(models, feats_array)[0]
         results.append([fname] + list(probs))
-        if (i+1)%10==0:
-            print(f"{i+1}/{len(test_files)}")
 
     with open(args.output, 'w') as f:
         f.write("fasta_file\t"+"\t".join(labels)+"\n")
         for r in results:
             f.write(f"{r[0]}\t"+"\t".join([f"{x:.6f}" for x in r[1:]])+"\n")
 
-    t_end = time.time()
-    total_time_min = (t_end - t_start) / 60.0
-    peak_mem_mb = get_memory_usage()
-    print("\n" + "="*50)
-    print("                  PERFORMANCE REPORT")
-    print("="*50)
-    print(f"Total Time:         {total_time_min:.2f} min")
-    print(f"Total Reads (Est):  {total_reads_approx:,}")
-    print(f"Peak Memory:        {peak_mem_mb:.2f} MB")
-    
-    # Calculate Rate
-    if total_reads_approx > 0:
-        reads_in_millions = total_reads_approx / 1_000_000.0
-        minutes_per_million = total_time_min / reads_in_millions
-        print(f"Processing Rate:    {minutes_per_million:.2f} min / 1M reads")
-        print("-" * 50)
-        print("RUNTIME SCORE COMPUTATION:")
-        if minutes_per_million <= 1.0:
-            print("ESTIMATED SCORE: 3 points (Excellent)")
-        elif minutes_per_million <= 2.0:
-            print("ESTIMATED SCORE: 2 points (Good)")
-        elif minutes_per_million <= 5.0:
-            print("ESTIMATED SCORE: 1 point (Passable)")
-        else:
-            print("ESTIMATED SCORE: 0 points (Too slow)")
-    else:
-        print("Processing Rate:    N/A (No reads counted)")
-
-    print("-" * 50)
-    if peak_mem_mb <= 1000:
-        print(f"Memory Usage:       OK ({peak_mem_mb:.1f} MB <= 1000 MB)")
-    else:
-        print(f"Memory Usage:       FAIL ({peak_mem_mb:.1f} MB > 1000 MB)")
-    print("="*50)
 
 if __name__ == "__main__":
     main()
