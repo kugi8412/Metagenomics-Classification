@@ -1,0 +1,7 @@
+AUC-ROC for class Auckland: 1.0000
+AUC-ROC for class Berlin: 0.9778
+AUC-ROC for class Kyiv: 0.8889
+AUC-ROC for class London: 0.7778
+AUC-ROC for class Singapore: 0.6667
+AUC-ROC for class Tokyo: 0.2222
+Average AUC-ROC across all classes: 0.7556
